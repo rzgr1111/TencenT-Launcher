@@ -29,12 +29,9 @@ class MinecraftLauncher:
         print(f"Java bulundu: {self.java_path}")
     
     def is_version_installed(self, version: str) -> bool:
-        """Versiyon yüklü mü kontrol et"""
+        """Versiyon yüklü mü kontrol et - PortableMC ile"""
         version_dir = self.versions_dir / version
-        version_jar = version_dir / f"{version}.jar"
-        version_json = version_dir / f"{version}.json"
-        
-        return version_dir.exists() and version_jar.exists() and version_json.exists()
+        return version_dir.exists() and (version_dir / f"{version}.jar").exists()
     
     def build_classpath(self, version_data: dict, version_id: str) -> str:
         """Classpath oluştur"""
