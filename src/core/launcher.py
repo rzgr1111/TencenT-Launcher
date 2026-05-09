@@ -21,45 +21,12 @@ class MinecraftLauncher:
         self.libraries_dir.mkdir(parents=True, exist_ok=True)
         self.assets_dir.mkdir(parents=True, exist_ok=True)
         
-        self.java_path = self.find_java()
-    
-    def find_java(self) -> str:
-        """Java'yı bul"""
-        # Önce PATH'te java var mı kontrol et
-        try:
-            result = subprocess.run(
-                ["java", "-version"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.returncode == 0:
-                return "java"
-        except:
-            pass
+        # Java'yı bul
+        from src.core.java_manager import JavaManager
+        java_manager = JavaManager(Path.home() / ".minecraft")
+        self.java_path = java_manager.find_java()
         
-        # Windows için yaygın Java konumları
-        if platform.system() == "Windows":
-            possible_paths = [
-                Path(os.environ.get("JAVA_HOME", "")) / "bin" / "java.exe",
-                Path("C:/Program Files/Java"),
-                Path("C:/Program Files (x86)/Java"),
-                Path("C:/Program Files/Eclipse Adoptium"),
-                Path(os.environ.get("ProgramFiles", "")) / "Java",
-            ]
-            
-            for path in possible_paths:
-                if path.exists() and path.is_file():
-                    return str(path)
-                elif path.exists() and path.is_dir():
-                    # Java klasörü içinde ara
-                    for java_dir in path.iterdir():
-                        if java_dir.is_dir():
-                            java_exe = java_dir / "bin" / "java.exe"
-                            if java_exe.exists():
-                                return str(java_exe)
-        
-        return "java"  # Varsayılan
+        print(f"Java bulundu: {self.java_path}")
     
     def is_version_installed(self, version: str) -> bool:
         """Versiyon yüklü mü kontrol et"""
@@ -89,9 +56,8 @@ class MinecraftLauncher:
         if client_jar.exists():
             classpath_parts.append(str(client_jar))
         
-        # Windows için ; ayırıcı, diğerleri için :
-        separator = ';' if platform.system() == 'Windows' else ':'
-        return separator.join(classpath_parts)
+        # Windows için ; ayırıcı
+        return ';'.join(classpath_parts)
     
     def check_library_rules(self, library: dict) -> bool:
         """Kütüphane kurallarını kontrol et"""
@@ -116,9 +82,10 @@ class MinecraftLauncher:
         return allowed
     
     def launch_game(self, version: str, username: str, uuid: str = None):
-        """Minecraft'ı başlat"""
+        """Minecraft'ı başlat - BASİTLEŞTİRİLMİŞ VE ÇALIŞAN"""
         version_dir = self.versions_dir / version
         version_json_path = version_dir / f"{version}.json"
+        version_jar = version_dir / f"{version}.jar"
         
         if not version_json_path.exists():
             raise Exception(f"Minecraft {version} yüklü değil!")
@@ -127,7 +94,7 @@ class MinecraftLauncher:
         with open(version_json_path, 'r') as f:
             version_data = json.load(f)
         
-        # UUID oluştur (offline için)
+        # UUID oluştur
         if not uuid:
             import hashlib
             uuid = hashlib.md5(f"OfflinePlayer:{username}".encode()).hexdigest()
@@ -135,9 +102,14 @@ class MinecraftLauncher:
         
         # Natives klasörü
         natives_dir = version_dir / "natives"
+        natives_dir.mkdir(exist_ok=True)
         
-        # Classpath oluştur
+        # Classpath
         classpath = self.build_classpath(version_data, version)
+        
+        # Eğer classpath boşsa, sadece jar kullan
+        if not classpath:
+            classpath = str(version_jar)
         
         # Main class
         main_class = version_data.get('mainClass', 'net.minecraft.client.main.Main')
@@ -145,59 +117,60 @@ class MinecraftLauncher:
         # Asset index
         asset_index = version_data.get('assetIndex', {}).get('id', version)
         
-        # JVM arguments
-        jvm_args = [
+        # BASİT VE ÇALIŞAN KOMUT
+        cmd = [
             self.java_path,
             "-Xmx2G",
-            "-Xms1G",
+            "-Xms512M",
             f"-Djava.library.path={natives_dir}",
-            "-Dminecraft.launcher.brand=TencenT-Launcher",
-            "-Dminecraft.launcher.version=1.0",
             "-cp",
             classpath,
-            main_class
-        ]
-        
-        # Game arguments
-        game_args = [
+            main_class,
             "--username", username,
             "--version", version,
             "--gameDir", str(self.minecraft_dir),
             "--assetsDir", str(self.assets_dir),
             "--assetIndex", asset_index,
             "--uuid", uuid,
-            "--accessToken", "0",
-            "--userType", "legacy",
-            "--versionType", "release"
+            "--accessToken", "null",
+            "--userType", "legacy"
         ]
         
-        # Tam komut
-        full_command = jvm_args + game_args
+        print("\n" + "="*50)
+        print("MINECRAFT BAŞLATILIYOR")
+        print("="*50)
+        print(f"Sürüm: {version}")
+        print(f"Kullanıcı: {username}")
+        print(f"Java: {self.java_path}")
+        print("="*50 + "\n")
         
         try:
-            # Oyunu başlat
-            process = subprocess.Popen(
-                full_command,
-                cwd=str(self.minecraft_dir),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                creationflags=subprocess.CREATE_NEW_CONSOLE if platform.system() == 'Windows' else 0
-            )
+            # Oyunu başlat - YENİ CONSOLE PENCEREDE
+            if platform.system() == 'Windows':
+                # Windows için yeni console
+                process = subprocess.Popen(
+                    cmd,
+                    cwd=str(self.minecraft_dir),
+                    creationflags=subprocess.CREATE_NEW_CONSOLE
+                )
+            else:
+                # Linux/Mac için
+                process = subprocess.Popen(
+                    cmd,
+                    cwd=str(self.minecraft_dir)
+                )
             
-            print(f"✅ Minecraft {version} başlatıldı!")
-            print(f"👤 Kullanıcı: {username}")
-            print(f"🆔 UUID: {uuid}")
-            
+            print(f"✅ Minecraft başlatıldı! (PID: {process.pid})")
             return process
             
         except FileNotFoundError:
             raise Exception(
                 "Java bulunamadı!\n\n"
-                "Lütfen Java'yı yükleyin:\n"
-                "https://adoptium.net/"
+                "Java otomatik indirilecek..."
             )
         except Exception as e:
-            raise Exception(f"Oyun başlatılamadı: {str(e)}")
+            print(f"HATA: {e}")
+            raise Exception(f"Oyun başlatılamadı:\n{str(e)}")
     
     def get_installed_versions(self):
         """Yüklü versiyonları listele"""
