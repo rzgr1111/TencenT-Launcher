@@ -11,13 +11,11 @@ sys.path.insert(0, str(project_root))
 
 def main():
     """Launcher'ı başlat"""
-    print("Minecraft Launcher başlatılıyor...")
-    print("GUI yükleniyor...")
+    print("TencenT Launcher başlatılıyor...")
     
-    # TODO: GUI başlatılacak
-    # from src.gui.main_window import MainWindow
-    # app = MainWindow()
-    # app.run()
+    from src.gui.main_window import MainWindow
+    app = MainWindow()
+    app.run()
 
 if __name__ == "__main__":
     main()
