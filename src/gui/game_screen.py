@@ -383,25 +383,57 @@ class GameScreen:
         
         def download():
             try:
-                # Gerçek indirme
-                self.launcher.download_version(
-                    version_id,
-                    progress_callback=lambda p: self.parent.after(
-                        0, lambda: self.update_download_progress(p, version_id)
+                import asyncio
+                from src.core.downloader import Downloader
+                
+                # Version manifest al
+                version_manifest = None
+                for v in self.versions:
+                    if v.get('id') == version_id:
+                        version_manifest = v
+                        break
+                
+                if not version_manifest:
+                    raise Exception("Versiyon bulunamadı!")
+                
+                # Downloader oluştur
+                downloader = Downloader()
+                
+                # Progress callback
+                def progress(percent, status=""):
+                    self.parent.after(0, lambda: self.update_download_progress(percent, status))
+                
+                # Async indirme
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                loop.run_until_complete(
+                    downloader.download_version(
+                        version_manifest,
+                        self.launcher.minecraft_dir,
+                        progress_callback=progress
                     )
                 )
                 
+                loop.close()
+                
                 # İndirme tamamlandı
                 self.parent.after(0, lambda: self.on_download_complete(version_id))
+                
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 self.parent.after(0, lambda: self.on_download_error(str(e)))
         
         threading.Thread(target=download, daemon=True).start()
     
-    def update_download_progress(self, progress, version_id):
+    def update_download_progress(self, progress, status=""):
         """İndirme ilerlemesini güncelle"""
         self.download_progress.set(progress / 100)
-        self.download_status.configure(text=f"{version_id} indiriliyor... {progress}%")
+        if status:
+            self.download_status.configure(text=status)
+        else:
+            self.download_status.configure(text=f"İndiriliyor... {progress}%")
     
     def on_download_complete(self, version_id):
         """İndirme tamamlandı"""
@@ -426,13 +458,32 @@ class GameScreen:
     def launch_game(self, version_id):
         """Oyunu başlat"""
         try:
-            self.launcher.launch_game(
+            # UUID oluştur
+            import hashlib
+            username = self.user_data['username']
+            uuid = self.user_data.get('uuid')
+            
+            if not uuid or uuid.startswith('offline-'):
+                uuid = hashlib.md5(f"OfflinePlayer:{username}".encode()).hexdigest()
+                uuid = f"{uuid[:8]}-{uuid[8:12]}-{uuid[12:16]}-{uuid[16:20]}-{uuid[20:32]}"
+            
+            # Oyunu başlat
+            process = self.launcher.launch_game(
                 version=version_id,
-                username=self.user_data['username']
+                username=username,
+                uuid=uuid
             )
-            messagebox.showinfo("Başlatılıyor", f"Minecraft {version_id} başlatılıyor...")
+            
+            messagebox.showinfo(
+                "Oyun Başlatıldı",
+                f"Minecraft {version_id} başarıyla başlatıldı!\n\n"
+                f"Oyun yeni bir pencerede açılacak."
+            )
+            
         except Exception as e:
-            messagebox.showerror("Hata", f"Oyun başlatılamadı:\n{str(e)}")
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror("Hata", f"Oyun başlatılamadı:\n\n{str(e)}")
     
     def open_skin_market(self):
         """Skin marketini aç"""

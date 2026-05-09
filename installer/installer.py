@@ -305,6 +305,21 @@ class InstallerWindow:
                 self.install_path / "assets",
                 dirs_exist_ok=True
             )
+        
+        # requirements.txt kopyala
+        req_path = Path(__file__).parent.parent / "requirements.txt"
+        if req_path.exists():
+            shutil.copy(req_path, self.install_path / "requirements.txt")
+        
+        # Python bağımlılıklarını yükle
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-r", str(self.install_path / "requirements.txt")],
+                check=True,
+                capture_output=True
+            )
+        except:
+            pass  # Hata olursa devam et
     
     def create_config(self, java_path):
         """Config dosyası oluştur"""
@@ -323,18 +338,34 @@ class InstallerWindow:
     def create_desktop_shortcut(self):
         """Masaüstü kısayolu oluştur"""
         # Windows için .bat dosyası oluştur
-        launcher_exe = self.install_path / "TencenT-Launcher.exe"
+        launcher_bat = self.desktop_path / "TencenT Launcher.bat"
         
-        # Şimdilik Python script çalıştıran bat
         bat_content = f'''@echo off
+title TencenT Launcher
 cd /d "{self.install_path}"
 python src/main.py
-pause
+if errorlevel 1 (
+    echo.
+    echo Hata: Python bulunamadi veya launcher baslatılamadı!
+    echo.
+    echo Python yuklu mu kontrol edin: python --version
+    echo.
+    pause
+)
 '''
         
-        bat_file = self.desktop_path / "TencenT Launcher.bat"
-        with open(bat_file, 'w') as f:
+        with open(launcher_bat, 'w', encoding='utf-8') as f:
             f.write(bat_content)
+        
+        # .vbs ile gizli başlatma (opsiyonel)
+        launcher_vbs = self.desktop_path / "TencenT Launcher.vbs"
+        vbs_content = f'''Set WshShell = CreateObject("WScript.Shell")
+WshShell.Run chr(34) & "{launcher_bat}" & Chr(34), 0
+Set WshShell = Nothing
+'''
+        
+        with open(launcher_vbs, 'w', encoding='utf-8') as f:
+            f.write(vbs_content)
     
     def show_success(self):
         """Başarı ekranı"""
