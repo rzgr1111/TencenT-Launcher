@@ -376,49 +376,30 @@ class GameScreen:
             self.launch_game(version_id)
     
     def download_version(self, version_id):
-        """Versiyon indir"""
+        """Versiyon indir - YENİ SİSTEM"""
         # UI güncelle
         self.play_button.configure(state="disabled")
         self.download_frame.pack(fill="x", pady=20)
         
         def download():
             try:
-                import asyncio
-                from src.core.downloader import Downloader
-                
-                # Version manifest al
-                version_manifest = None
-                for v in self.versions:
-                    if v.get('id') == version_id:
-                        version_manifest = v
-                        break
-                
-                if not version_manifest:
-                    raise Exception("Versiyon bulunamadı!")
+                from src.core.minecraft_downloader import MinecraftDownloader
                 
                 # Downloader oluştur
-                downloader = Downloader()
+                downloader = MinecraftDownloader(self.launcher.minecraft_dir)
                 
                 # Progress callback
                 def progress(percent, status=""):
                     self.parent.after(0, lambda: self.update_download_progress(percent, status))
                 
-                # Async indirme
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+                # İndir
+                success = downloader.download_version(version_id, progress_callback=progress)
                 
-                loop.run_until_complete(
-                    downloader.download_version(
-                        version_manifest,
-                        self.launcher.minecraft_dir,
-                        progress_callback=progress
-                    )
-                )
-                
-                loop.close()
-                
-                # İndirme tamamlandı
-                self.parent.after(0, lambda: self.on_download_complete(version_id))
+                if success:
+                    # İndirme tamamlandı
+                    self.parent.after(0, lambda: self.on_download_complete(version_id))
+                else:
+                    self.parent.after(0, lambda: self.on_download_error("İndirme başarısız!"))
                 
             except Exception as e:
                 import traceback
