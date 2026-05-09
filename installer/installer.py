@@ -18,8 +18,8 @@ class InstallerWindow:
     def __init__(self):
         self.root = ctk.CTk()
         self.root.title("TencenT Launcher - Kurulum")
-        self.root.geometry("600x500")
-        self.root.resizable(False, False)
+        self.root.geometry("800x700")
+        self.root.resizable(True, True)
         
         # Tema
         ctk.set_appearance_mode("dark")
@@ -87,9 +87,9 @@ class InstallerWindow:
         # Splash ekranı temizle
         self.splash_frame.destroy()
         
-        # Ana frame
-        self.main_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        self.main_frame.pack(fill="both", expand=True, padx=40, pady=40)
+        # Scrollable frame
+        self.main_frame = ctk.CTkScrollableFrame(self.root, fg_color="transparent")
+        self.main_frame.pack(fill="both", expand=True, padx=30, pady=30)
         
         # Başlık
         title = ctk.CTkLabel(

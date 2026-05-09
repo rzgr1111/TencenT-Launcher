@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['installer\\installer.py'],
+    ['simple_installer.py'],
     pathex=[],
     binaries=[],
     datas=[],
