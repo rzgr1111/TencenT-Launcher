@@ -437,34 +437,38 @@ class GameScreen:
         messagebox.showerror("Hata", f"İndirme sırasında hata oluştu:\n{error}")
     
     def launch_game(self, version_id):
-        """Oyunu başlat"""
+        """Oyunu başlat - YENİ BASİT SİSTEM"""
         try:
-            # UUID oluştur
-            import hashlib
-            username = self.user_data['username']
-            uuid = self.user_data.get('uuid')
+            # Basit launcher kullan
+            from src.core.simple_launcher import SimpleLauncher
             
-            if not uuid or uuid.startswith('offline-'):
-                uuid = hashlib.md5(f"OfflinePlayer:{username}".encode()).hexdigest()
-                uuid = f"{uuid[:8]}-{uuid[8:12]}-{uuid[12:16]}-{uuid[16:20]}-{uuid[20:32]}"
+            simple_launcher = SimpleLauncher()
+            
+            username = self.user_data['username']
             
             # Oyunu başlat
-            process = self.launcher.launch_game(
-                version=version_id,
-                username=username,
-                uuid=uuid
-            )
+            process = simple_launcher.launch(version_id, username)
             
             messagebox.showinfo(
                 "Oyun Başlatıldı",
-                f"Minecraft {version_id} başarıyla başlatıldı!\n\n"
-                f"Oyun yeni bir pencerede açılacak."
+                f"Minecraft {version_id} başlatıldı!\n\n"
+                f"Yeni bir console penceresi açıldı.\n"
+                f"Hata varsa orada göreceksin.\n\n"
+                f"Komut dosyası:\n"
+                f"C:\\Users\\[Kullanıcı]\\.minecraft\\launch_command.txt"
             )
             
         except Exception as e:
             import traceback
             traceback.print_exc()
-            messagebox.showerror("Hata", f"Oyun başlatılamadı:\n\n{str(e)}")
+            
+            error_msg = str(e)
+            
+            # Java hatası mı?
+            if "java" in error_msg.lower():
+                error_msg += "\n\nJava bulunamadı veya hatalı!\nJava'yı yükleyin: https://adoptium.net/"
+            
+            messagebox.showerror("Hata", f"Oyun başlatılamadı:\n\n{error_msg}")
     
     def open_skin_market(self):
         """Skin marketini aç"""
