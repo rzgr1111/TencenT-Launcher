@@ -104,8 +104,11 @@ class Downloader:
         return True
     
     async def download_libraries(self, version_data: dict, minecraft_dir: Path):
-        """Kütüphaneleri indir"""
+        """Kütüphaneleri indir - TÜM KÜTÜPHANELER"""
         libraries_dir = minecraft_dir / "libraries"
+        
+        downloaded = 0
+        total = len(version_data.get('libraries', []))
         
         for library in version_data.get('libraries', []):
             # Rules kontrolü (OS uyumluluğu)
@@ -117,13 +120,19 @@ class Downloader:
                 artifact = library['downloads'].get('artifact')
                 if artifact:
                     lib_path = libraries_dir / artifact['path']
-                    await self.download_file(
+                    
+                    # İndir
+                    success = await self.download_file(
                         artifact['url'],
                         lib_path,
-                        artifact['sha1']
+                        artifact.get('sha1')
                     )
+                    
+                    if success:
+                        downloaded += 1
+                        print(f"Library: {downloaded}/{total} - {artifact['path'].split('/')[-1]}")
                 
-                # Natives (platform-specific)
+                # Natives (platform-specific) - ÖNEMLİ!
                 classifiers = library['downloads'].get('classifiers', {})
                 natives = library.get('natives', {})
                 
@@ -134,14 +143,20 @@ class Downloader:
                     if native_key and native_key in classifiers:
                         native_info = classifiers[native_key]
                         native_path = libraries_dir / native_info['path']
-                        await self.download_file(
+                        
+                        success = await self.download_file(
                             native_info['url'],
                             native_path,
-                            native_info['sha1']
+                            native_info.get('sha1')
                         )
+                        
+                        if success:
+                            print(f"Native: {native_info['path'].split('/')[-1]}")
+        
+        print(f"✅ {downloaded} kütüphane indirildi")
     
     async def download_assets(self, version_data: dict, minecraft_dir: Path):
-        """Asset'leri indir"""
+        """Asset'leri indir - SADECE GEREKLİ OLANLAR"""
         asset_index_info = version_data.get('assetIndex', {})
         if not asset_index_info:
             return
@@ -162,11 +177,24 @@ class Downloader:
                 with open(index_path, 'w') as f:
                     json.dump(asset_index, f, indent=2)
         
-        # Asset objeleri indir (sadece ilk 100 tanesini - hız için)
+        # Asset objeleri indir - SADECE KÜÇÜK DOSYALAR (ses efektleri vb)
         objects = asset_index.get('objects', {})
-        count = 0
+        
+        # Öncelikli assetler (sesler, fontlar, vb)
+        priority_patterns = ['sounds/', 'font/', 'lang/', 'icons/', 'texts/']
+        
+        downloaded = 0
         for asset_name, asset_info in objects.items():
-            if count >= 100:  # İlk 100 asset
+            # Sadece öncelikli assetleri indir
+            is_priority = any(pattern in asset_name for pattern in priority_patterns)
+            
+            # Veya küçük dosyalar (< 100KB)
+            is_small = asset_info.get('size', 0) < 100000
+            
+            if not (is_priority or is_small):
+                continue
+            
+            if downloaded >= 500:  # Maksimum 500 asset
                 break
             
             hash_code = asset_info['hash']
@@ -175,11 +203,16 @@ class Downloader:
             object_path = objects_dir / hash_prefix / hash_code
             object_url = f"https://resources.download.minecraft.net/{hash_prefix}/{hash_code}"
             
-            await self.download_file(object_url, object_path, hash_code)
-            count += 1
+            success = await self.download_file(object_url, object_path, hash_code)
+            if success:
+                downloaded += 1
+                if downloaded % 50 == 0:
+                    print(f"Assets: {downloaded} indirildi...")
+        
+        print(f"✅ {downloaded} asset indirildi")
     
     async def extract_natives(self, version_data: dict, version_dir: Path):
-        """Native kütüphaneleri çıkar"""
+        """Native kütüphaneleri çıkar - ZORUNLU!"""
         import zipfile
         import platform
         
@@ -188,6 +221,7 @@ class Downloader:
         
         libraries_dir = version_dir.parent.parent / "libraries"
         
+        extracted = 0
         for library in version_data.get('libraries', []):
             if 'downloads' not in library:
                 continue
@@ -206,10 +240,14 @@ class Downloader:
                         try:
                             with zipfile.ZipFile(native_path, 'r') as zip_ref:
                                 for file in zip_ref.namelist():
-                                    if file.endswith('.dll') or file.endswith('.so') or file.endswith('.dylib'):
+                                    # Sadece .dll dosyalarını çıkar
+                                    if file.endswith('.dll'):
                                         zip_ref.extract(file, natives_dir)
-                        except:
-                            pass
+                                        extracted += 1
+                        except Exception as e:
+                            print(f"Native çıkarma hatası: {e}")
+        
+        print(f"✅ {extracted} native dosya çıkarıldı")
     
     def check_rules(self, rules: list) -> bool:
         """Kural kontrolü (OS uyumluluğu)"""
