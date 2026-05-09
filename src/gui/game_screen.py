@@ -437,38 +437,49 @@ class GameScreen:
         messagebox.showerror("Hata", f"İndirme sırasında hata oluştu:\n{error}")
     
     def launch_game(self, version_id):
-        """Oyunu başlat - YENİ BASİT SİSTEM"""
+        """Oyunu başlat - PORTABLEMC İLE"""
         try:
-            # Basit launcher kullan
-            from src.core.simple_launcher import SimpleLauncher
+            from src.core.working_launcher import WorkingLauncher
             
-            simple_launcher = SimpleLauncher()
-            
+            launcher = WorkingLauncher()
             username = self.user_data['username']
             
-            # Oyunu başlat
-            process = simple_launcher.launch(version_id, username)
+            # Mesaj göster
+            response = messagebox.askyesno(
+                "Minecraft Başlatılıyor",
+                f"Minecraft {version_id} başlatılacak.\n\n"
+                f"PortableMC kullanılacak (kanıtlanmış çözüm).\n"
+                f"İlk çalıştırmada biraz sürebilir.\n\n"
+                f"Devam edilsin mi?"
+            )
+            
+            if not response:
+                return
+            
+            # Yeni thread'de başlat
+            def launch_thread():
+                try:
+                    launcher.launch(version_id, username)
+                except Exception as e:
+                    self.parent.after(0, lambda: messagebox.showerror(
+                        "Hata",
+                        f"Başlatma hatası:\n{str(e)}"
+                    ))
+            
+            import threading
+            thread = threading.Thread(target=launch_thread, daemon=True)
+            thread.start()
             
             messagebox.showinfo(
-                "Oyun Başlatıldı",
-                f"Minecraft {version_id} başlatıldı!\n\n"
-                f"Yeni bir console penceresi açıldı.\n"
-                f"Hata varsa orada göreceksin.\n\n"
-                f"Komut dosyası:\n"
-                f"C:\\Users\\[Kullanıcı]\\.minecraft\\launch_command.txt"
+                "Başlatıldı",
+                "Minecraft başlatılıyor!\n\n"
+                "Console çıktısını launcher penceresinde görebilirsin."
             )
             
         except Exception as e:
             import traceback
             traceback.print_exc()
-            
-            error_msg = str(e)
-            
-            # Java hatası mı?
-            if "java" in error_msg.lower():
-                error_msg += "\n\nJava bulunamadı veya hatalı!\nJava'yı yükleyin: https://adoptium.net/"
-            
-            messagebox.showerror("Hata", f"Oyun başlatılamadı:\n\n{error_msg}")
+            messagebox.showerror("Hata", f"Hata:\n\n{str(e)}")
     
     def open_skin_market(self):
         """Skin marketini aç"""
